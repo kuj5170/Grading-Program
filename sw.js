@@ -1,5 +1,5 @@
 /* ── 수행평가 채점 기록 Service Worker v1.3.0 ── */
-const CACHE = 'suhaeng-v1.4.3';
+const CACHE = 'suhaeng-v1.4.4';
 const ASSETS = [
   './',
   './수행평가_채점기록.html',
@@ -25,8 +25,13 @@ self.addEventListener('activate', e => {
   );
 });
 
-/* 요청: 캐시 우선, 없으면 네트워크 */
+/* 요청: 외부 API는 그냥 통과, 나머지는 캐시 우선 */
 self.addEventListener('fetch', e => {
+  const url = e.request.url;
+  // googleapis, cdnjs 등 외부 요청은 SW가 개입하지 않음
+  if(url.includes('googleapis.com') || url.includes('cdnjs.cloudflare.com')){
+    return;
+  }
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;
@@ -36,6 +41,6 @@ self.addEventListener('fetch', e => {
         caches.open(CACHE).then(c => c.put(e.request, clone));
         return res;
       });
-    }).catch(() => caches.match('./수행평가_채점기록.html'))
+    }).catch(() => caches.match('./index.html'))
   );
 });
