@@ -1215,7 +1215,7 @@ function renderConfig(){
     <div class="card" style="color:var(--text2)">
       <div class="lbl">정보</div>
       <div style="font-size:13px;line-height:1.9">
-        수행평가 채점 기록 <strong style="color:var(--text)">v1.4.5</strong><br>
+        수행평가 채점 기록 <strong style="color:var(--text)">v1.4.6</strong><br>
         경기도교육청 교사 김의준<br>
         데이터는 이 기기의 브라우저에 저장됩니다.<br>
         정기적으로 엑셀로 내려받아 백업하세요.
@@ -1376,7 +1376,7 @@ function fileToB64(file){
 
 async function callGemini(b64, mimeType, prompt){
   const res=await fetch(
-    `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${CFG.geminiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite-preview-06-17:generateContent?key=${CFG.geminiKey}`,
     {method:'POST',headers:{'Content-Type':'application/json'},
      body:JSON.stringify({contents:[{parts:[
        {text:prompt},

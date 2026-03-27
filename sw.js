@@ -1,5 +1,5 @@
 /* ── 수행평가 채점 기록 Service Worker v1.3.0 ── */
-const CACHE = 'suhaeng-v1.4.5';
+const CACHE = 'suhaeng-v1.4.6';
 const ASSETS = [
   './',
   './수행평가_채점기록.html',
