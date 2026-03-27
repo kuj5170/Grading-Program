@@ -1,0 +1,1374 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="수행평가 채점">
+<meta name="theme-color" content="#0F6E56">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>수행평가 채점 기록</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#f5f4f0;--surface:#fff;--border:#e2e0d8;--border2:#bbb;
+  --text:#1a1a1a;--text2:#666;--text3:#aaa;
+  --accent:#0F6E56;--accent-l:#E1F5EE;--accent-m:#1D9E75;--accent-s:#9FE1CB;
+  --r:12px;--rs:8px;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;background:var(--bg);min-height:100vh;color:var(--text);overscroll-behavior:none}
+input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none}
+input[type=number]{-moz-appearance:textfield}
+input,button,select{font-family:inherit;font-size:16px}
+
+/* ── 공통 레이아웃 ── */
+.hd{background:var(--surface);border-bottom:.5px solid var(--border);padding:14px 16px;position:sticky;top:0;z-index:50}
+.hd-inner{display:flex;align-items:center;justify-content:space-between;max-width:600px;margin:0 auto}
+.hd-title{font-size:17px;font-weight:600}
+.hd-sub{font-size:11px;color:var(--text2);margin-top:2px}
+.hd-badge{font-size:11px;color:var(--accent);font-weight:600;text-align:right}
+.sub-nav{display:none;position:sticky;top:57px;z-index:40;background:var(--surface);border-bottom:.5px solid var(--border)}
+.sub-nav-inner{display:flex;max-width:600px;margin:0 auto}
+.stab{flex:1;padding:11px 4px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;color:var(--text2);border-bottom:2.5px solid transparent;white-space:nowrap}
+.stab.on{color:var(--accent);border-bottom-color:var(--accent)}
+.content{padding:0 0 96px;max-width:600px;margin:0 auto}
+.tc{padding:12px 16px}
+.card{background:var(--surface);border:.5px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:10px}
+.lbl{font-size:11px;font-weight:600;color:var(--text2);letter-spacing:.06em;margin-bottom:10px}
+
+/* ── 입력 요소 ── */
+input[type=text],input[type=number],input[type=password],select{
+  padding:11px 12px;border:.5px solid var(--border);border-radius:var(--rs);
+  background:var(--surface);color:var(--text);outline:none;width:100%;
+}
+select{
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23888' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center;padding-right:32px;appearance:none;-webkit-appearance:none;
+}
+input:focus,select:focus{border-color:var(--accent)}
+
+/* ── 버튼 ── */
+.btn-p{background:var(--accent);color:var(--accent-l);border:none;border-radius:var(--rs);padding:11px 16px;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn-o{background:none;color:var(--text);border:.5px solid var(--border2);border-radius:var(--rs);padding:10px 14px;font-size:14px;cursor:pointer;white-space:nowrap}
+.btn-sm{padding:5px 9px;font-size:12px;border-radius:6px;border:.5px solid var(--border);background:none;cursor:pointer;color:var(--text2);white-space:nowrap}
+.btn-sm-red{padding:5px 9px;font-size:12px;border-radius:6px;border:.5px solid #e24b4a55;background:none;cursor:pointer;color:#e24b4a;white-space:nowrap}
+.btn-sm-acc{padding:5px 9px;font-size:12px;border-radius:6px;border:.5px solid var(--accent);background:none;cursor:pointer;color:var(--accent);white-space:nowrap}
+.row{display:flex;gap:6px;align-items:center}
+.f1{flex:1;min-width:0}
+
+/* ── 반 카드 ── */
+.cls-card{background:var(--surface);border:.5px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:8px}
+.cls-header{display:flex;align-items:center;gap:7px}
+.cls-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.cls-name{font-size:15px;font-weight:600;flex:1;min-width:0}
+.edit-row{display:flex;gap:6px;margin-bottom:10px}
+.prog{height:5px;border-radius:3px;background:var(--border);overflow:hidden;margin-top:6px}
+.prog-f{height:100%;border-radius:3px;transition:width .3s}
+
+/* ── 배정 칩 ── */
+.ass-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
+.ass-chip{font-size:11px;padding:3px 8px;border-radius:10px;font-weight:600;background:var(--accent-l);color:var(--accent)}
+
+/* ── 수행평가 아이템 ── */
+.ass-card{background:var(--surface);border:.5px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:8px}
+.ass-header{display:flex;align-items:center;gap:7px}
+.ass-name{font-size:15px;font-weight:600;flex:1;min-width:0}
+.ass-body{margin-top:12px;padding-top:12px;border-top:.5px solid var(--border)}
+
+/* ── 학생 행 ── */
+.stu-row{display:flex;align-items:center;padding:9px 0;border-bottom:.5px solid var(--border)}
+.stu-row:last-child{border-bottom:none}
+.cbadge{display:inline-block;font-size:11px;padding:2px 7px;border-radius:10px;font-weight:600;flex-shrink:0;margin-right:7px}
+.sid-col{color:var(--text2);font-size:12px;width:78px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis}
+
+/* ── 채점 목록 카드 ── */
+.stu-card{display:flex;align-items:center;width:100%;text-align:left;background:var(--surface);border:.5px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:7px;cursor:pointer;border-left-width:4px}
+.stu-card.done{background:var(--accent-l);border-color:var(--accent-s);border-left-color:var(--accent-m)}
+
+/* ── 채점 입력 ── */
+.sc-row{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:.5px solid var(--border)}
+.sc-row:last-child{border-bottom:none}
+.sc-left{flex:1;min-width:0}
+.sc-crit-name{font-size:14px;font-weight:600}
+.sc-mini-bar{height:3px;border-radius:2px;background:var(--border);overflow:hidden;margin-top:4px}
+.sc-mini-fill{height:100%;border-radius:2px;transition:width .2s}
+.sc-right{display:flex;align-items:center;gap:5px;flex-shrink:0}
+.sc-inp{width:54px;text-align:center;font-size:17px;font-weight:700;padding:7px 4px;border:.5px solid var(--border);border-radius:var(--rs);background:var(--bg);color:var(--text)}
+.sc-inp:focus{border-color:var(--accent);background:var(--surface)}
+.sc-slash{font-size:13px;color:var(--text3)}
+.sc-max{font-size:13px;font-weight:600;color:var(--text2);min-width:24px}
+
+/* ── 필터 바 (수행평가 가로 스크롤용, 수행평가 수가 적으므로 유지) ── */
+.filter-row{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px;scrollbar-width:none}
+.filter-row::-webkit-scrollbar{display:none}
+.flt-btn{padding:7px 14px;border-radius:20px;border:none;font-size:13px;white-space:nowrap;cursor:pointer;flex-shrink:0;font-weight:500}
+
+/* ── 선택 바 (반 드롭다운) ── */
+.sel-bar{display:flex;gap:8px;margin-bottom:10px;align-items:center}
+.sel-pill{flex:1;display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border:.5px solid var(--border2);border-radius:20px;cursor:pointer;gap:6px;min-width:0}
+.sel-pill-label{font-size:11px;color:var(--text2);flex-shrink:0}
+.sel-pill-val{font-size:13px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sel-pill-arrow{font-size:11px;color:var(--text3);flex-shrink:0}
+.sel-pill.active{background:var(--accent-l);border-color:var(--accent)}
+.sel-pill.active .sel-pill-val{color:var(--accent)}
+.sel-pill.active .sel-pill-label{color:var(--accent-m)}
+
+/* ── 픽커 바텀시트 ── */
+.picker-sheet{position:fixed;inset:0;z-index:998;display:flex;flex-direction:column;justify-content:flex-end}
+.picker-dim{position:absolute;inset:0;background:rgba(0,0,0,.45)}
+.picker-box{position:relative;background:var(--surface);border-radius:20px 20px 0 0;padding:8px 0 calc(16px + env(safe-area-inset-bottom));max-height:70vh;display:flex;flex-direction:column}
+.picker-handle{width:36px;height:4px;border-radius:2px;background:var(--border2);margin:10px auto 6px}
+.picker-title{font-size:13px;font-weight:600;color:var(--text2);text-align:center;padding:4px 0 10px}
+.picker-list{overflow-y:auto;flex:1}
+.picker-item{display:flex;align-items:center;padding:14px 20px;gap:12px;cursor:pointer;border-bottom:.5px solid var(--border)}
+.picker-item:last-child{border-bottom:none}
+.picker-item:active{background:var(--bg)}
+.picker-item-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.picker-item-name{font-size:15px;font-weight:500;flex:1}
+.picker-item-sub{font-size:12px;color:var(--text2)}
+.picker-item-check{font-size:16px;color:var(--accent);flex-shrink:0;opacity:0}
+.picker-item.picked .picker-item-check{opacity:1}
+.picker-item.picked .picker-item-name{color:var(--accent);font-weight:600}
+
+/* ── 통계 ── */
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.stat-card{background:var(--surface);border:.5px solid var(--border);border-radius:10px;padding:12px}
+.stat-lbl{font-size:11px;color:var(--text2);margin-bottom:4px}
+.stat-val{font-size:17px;font-weight:600}
+
+/* ── 테이블 ── */
+.tbl-wrap{overflow-x:auto;border-radius:var(--r);border:.5px solid var(--border);background:var(--surface);margin-bottom:10px}
+table{width:100%;border-collapse:collapse;white-space:nowrap}
+th{padding:9px 6px;text-align:center;font-weight:600;font-size:12px;background:#f9f8f5;border-bottom:.5px solid var(--border)}
+td{padding:8px 5px;text-align:center;font-size:12px;border-bottom:.5px solid var(--border)}
+tr:last-child td{border-bottom:none}
+tr.avg-row td{background:#f9f8f5}
+
+/* ── 업로드 박스 ── */
+.upload-box{border:1.5px dashed var(--border2);border-radius:var(--rs);padding:13px;text-align:center;cursor:pointer;margin-bottom:6px}
+.hint{font-size:11px;color:var(--text3);margin-top:5px;line-height:1.7}
+
+/* ── 설정 테마 ── */
+.theme-row{display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-bottom:.5px solid var(--border)}
+.theme-row:last-child{border-bottom:none}
+.theme-label{font-size:15px;font-weight:500}
+.theme-sub{font-size:12px;color:var(--text2);margin-top:2px}
+.color-swatches{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.swatch{width:32px;height:32px;border-radius:50%;cursor:pointer;border:3px solid transparent;transition:transform .15s}
+.swatch.active{border-color:var(--text);transform:scale(1.15)}
+.seg-ctrl{display:flex;border:.5px solid var(--border2);border-radius:var(--rs);overflow:hidden}
+.seg-btn{flex:1;padding:8px 10px;border:none;background:none;font-size:13px;cursor:pointer;color:var(--text2);font-family:inherit;white-space:nowrap}
+.seg-btn.active{background:var(--accent);color:var(--accent-l);font-weight:600}
+
+/* ── 하단 내비 ── */
+.bot-nav{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:.5px solid var(--border);z-index:100;padding-bottom:env(safe-area-inset-bottom)}
+.bot-nav-inner{display:flex;max-width:600px;margin:0 auto}
+.nav-btn{flex:1;padding:10px 2px 11px;border:none;background:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--text2)}
+.nav-btn span{font-size:10px}
+.nav-icon svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+
+/* ── 모달 ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:999;display:flex;align-items:flex-end;justify-content:center;padding:16px}
+.modal-box{background:var(--surface);border-radius:16px;padding:20px;width:100%;max-width:440px;max-height:82vh;overflow-y:auto}
+.modal-title{font-size:16px;font-weight:600;margin-bottom:4px}
+.modal-sub{font-size:12px;color:var(--text2);margin-bottom:14px}
+.modal-msg{font-size:15px;line-height:1.65;margin-bottom:18px;color:var(--text)}
+.modal-btns{display:flex;gap:8px;margin-top:14px}
+.modal-cancel{flex:1;padding:12px;border:.5px solid var(--border2);background:none;border-radius:var(--rs);font-size:15px;cursor:pointer;color:var(--text);font-family:inherit}
+.modal-ok{flex:1;padding:12px;border:none;border-radius:var(--rs);font-size:15px;font-weight:600;cursor:pointer;font-family:inherit}
+
+/* ── 배정 모달 체크 행 ── */
+.assign-row{display:flex;align-items:center;padding:12px 0;border-bottom:.5px solid var(--border);cursor:pointer;gap:12px}
+.assign-row:last-child{border-bottom:none}
+.assign-check{width:22px;height:22px;border-radius:6px;border:2px solid var(--border2);flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.assign-check.on{background:var(--accent);border-color:var(--accent)}
+.assign-check.on::after{content:'✓';color:#fff;font-size:13px;font-weight:700}
+.assign-info{flex:1}
+.assign-name{font-size:14px;font-weight:600}
+.assign-detail{font-size:12px;color:var(--text2);margin-top:2px}
+
+/* ── 기타 ── */
+.empty{text-align:center;padding:36px 16px;color:var(--text2)}
+.tot-badge{background:var(--accent-l);color:var(--accent);padding:7px 11px;border-radius:var(--rs);font-size:15px;font-weight:700;flex-shrink:0}
+.tot-badge span{font-size:11px;font-weight:400;color:var(--accent-m)}
+.pn-row{display:flex;gap:8px;margin-top:4px}
+.pn-row .btn-o,.pn-row .btn-p{flex:1}
+.ai-msg{margin-top:8px;padding:10px 12px;background:var(--bg);border-radius:var(--rs);font-size:13px;color:var(--text2);line-height:1.5}
+.info-bar{font-size:12px;color:var(--text2);padding:8px 0;margin-bottom:2px;text-align:center}
+
+/* ── 다크모드 ── */
+@media (prefers-color-scheme:dark){
+  .dm-auto{--bg:#1c1c1e;--surface:#2c2c2e;--border:#3a3a3c;--border2:#555;--text:#f2f2f7;--text2:#aeaeb2;--text3:#6e6e73}
+  .dm-auto th,.dm-auto tr.avg-row td{background:#3a3a3c}
+  .dm-auto .sc-inp{background:#1c1c1e}.dm-auto .sc-inp:focus{background:#2c2c2e}
+  .dm-auto input[type=text],.dm-auto input[type=number],.dm-auto input[type=password],.dm-auto select{background:#2c2c2e;color:#f2f2f7;border-color:#3a3a3c}
+}
+.dm-dark{--bg:#1c1c1e;--surface:#2c2c2e;--border:#3a3a3c;--border2:#555;--text:#f2f2f7;--text2:#aeaeb2;--text3:#6e6e73}
+.dm-dark th,.dm-dark tr.avg-row td{background:#3a3a3c}
+.dm-dark .sc-inp{background:#1c1c1e}.dm-dark .sc-inp:focus{background:#2c2c2e}
+.dm-dark input[type=text],.dm-dark input[type=number],.dm-dark input[type=password],.dm-dark select{background:#2c2c2e;color:#f2f2f7;border-color:#3a3a3c}
+</style>
+</head>
+<body id="body">
+
+<div class="hd">
+  <div class="hd-inner">
+    <div>
+      <div class="hd-title">수행평가 채점 기록</div>
+      <div class="hd-sub" id="hSub">반을 먼저 추가하세요</div>
+    </div>
+    <div class="hd-badge" id="hBadge"></div>
+  </div>
+</div>
+
+<div class="sub-nav" id="subNav">
+  <div class="sub-nav-inner">
+    <button class="stab on" id="stab-class"   onclick="switchSetupTab('class')">반 관리</button>
+    <button class="stab"    id="stab-student" onclick="switchSetupTab('student')">학생 명단</button>
+    <button class="stab"    id="stab-assess"  onclick="switchSetupTab('assess')">수행평가</button>
+  </div>
+</div>
+
+<div class="content" id="content"></div>
+
+<!-- 전역 파일 인풋 -->
+<input type="file" id="crit-file"   accept=".csv,.txt"      style="display:none" onchange="handleCritFile(event)">
+<input type="file" id="stu-file"    accept=".csv,.txt"      style="display:none" onchange="handleStuFile(event)">
+<input type="file" id="ai-file"     accept="image/*,.pdf"   style="display:none" onchange="handleAiFile(event)">
+<input type="file" id="backup-file" accept=".json"          style="display:none" onchange="importBackup(event)">
+
+<div class="bot-nav">
+  <div class="bot-nav-inner">
+    <button class="nav-btn" id="nav-setup"   onclick="switchTab('setup')">
+      <div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+      <span>반 정보</span>
+    </button>
+    <button class="nav-btn" id="nav-score"   onclick="switchTab('score')">
+      <div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg></div>
+      <span>채점</span>
+    </button>
+    <button class="nav-btn" id="nav-results" onclick="switchTab('results')">
+      <div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></div>
+      <span>결과</span>
+    </button>
+    <button class="nav-btn" id="nav-config"  onclick="switchTab('config')">
+      <div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg></div>
+      <span>설정</span>
+    </button>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════
+   상수
+═══════════════════════════════ */
+const CC=['#185FA5','#0F6E56','#993556','#854F0B','#533AB7','#a32d2d','#3B6D11','#5C4A1E'];
+const CB=['#E6F1FB','#E1F5EE','#FBEAF0','#FAEEDA','#EEEDFE','#FCEBEB','#EAF3DE','#F5F0E8'];
+const ACCENT_THEMES=[
+  {name:'초록',accent:'#0F6E56',l:'#E1F5EE',m:'#1D9E75',s:'#9FE1CB'},
+  {name:'파랑',accent:'#185FA5',l:'#E6F1FB',m:'#2878CC',s:'#85B7EB'},
+  {name:'보라',accent:'#533AB7',l:'#EEEDFE',m:'#6B52D0',s:'#AFA9EC'},
+  {name:'분홍',accent:'#993556',l:'#FBEAF0',m:'#C04A72',s:'#ED93B1'},
+  {name:'주황',accent:'#854F0B',l:'#FAEEDA',m:'#A8650E',s:'#FAC775'},
+  {name:'빨강',accent:'#A32D2D',l:'#FCEBEB',m:'#C94040',s:'#F09595'},
+];
+
+/* ═══════════════════════════════
+   상태
+   S.classes[].assessmentIds  ← NEW: 반에 배정된 수행평가 목록
+   S.scores[assId][stuId][critId]
+═══════════════════════════════ */
+let S={classes:[],students:[],assessments:[],scores:{}};
+let CFG={accentIdx:0,darkMode:'auto',geminiKey:''};
+let tab='setup',setupTab='class';
+let filterCid='all',selAssId=null,selId=null;
+let editingClsId=null,editingAssId=null,expandedAssId=null,critFileAssId=null;
+let stuTabCls='';
+
+const uid=()=>Math.random().toString(36).slice(2,9);
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+/* ═══════════════════════════════
+   저장 / 불러오기 / 마이그레이션
+═══════════════════════════════ */
+function save(){try{localStorage.setItem('grd_data',JSON.stringify(S));}catch(e){}}
+function saveCfg(){try{localStorage.setItem('grd_cfg',JSON.stringify(CFG));}catch(e){}}
+function load(){
+  try{
+    const raw=localStorage.getItem('grd_data');
+    if(raw){
+      const d=JSON.parse(raw);
+      // v1.0 → v1.1
+      if(d.assessments===undefined){
+        const defId=uid();
+        d.assessments=(d.criteria||[]).length>0?[{id:defId,name:'수행평가',criteria:d.criteria}]:[];
+        d.scores=(d.criteria||[]).length>0&&d.scores?{[defId]:d.scores}:{};
+        delete d.criteria;
+      }
+      // v1.1 → v1.2: 반마다 assessmentIds 추가 (없으면 전체 배정)
+      if(d.classes){
+        const allAssIds=(d.assessments||[]).map(a=>a.id);
+        d.classes.forEach(c=>{
+          if(!c.assessmentIds) c.assessmentIds=[...allAssIds];
+        });
+      }
+      S=d;save();
+    }
+  }catch(e){}
+  try{const c=localStorage.getItem('grd_cfg');if(c)CFG=Object.assign({geminiKey:''},JSON.parse(c));}catch(e){}
+}
+load();
+
+/* ═══════════════════════════════
+   테마
+═══════════════════════════════ */
+function applyTheme(){
+  const body=document.getElementById('body');
+  body.classList.remove('dm-auto','dm-dark');
+  if(CFG.darkMode==='dark')body.classList.add('dm-dark');
+  else if(CFG.darkMode==='auto')body.classList.add('dm-auto');
+  const t=ACCENT_THEMES[CFG.accentIdx]||ACCENT_THEMES[0];
+  const r=document.documentElement.style;
+  r.setProperty('--accent',t.accent);r.setProperty('--accent-l',t.l);
+  r.setProperty('--accent-m',t.m);r.setProperty('--accent-s',t.s);
+}
+applyTheme();
+
+/* ═══════════════════════════════
+   모달
+═══════════════════════════════ */
+function closeModal(){document.querySelector('.modal-overlay')?.remove();}
+
+function showConfirm(msg,okLabel,okColor,onOk){
+  const ov=document.createElement('div');
+  ov.className='modal-overlay';
+  ov.innerHTML=`<div class="modal-box">
+    <div class="modal-msg">${msg}</div>
+    <div class="modal-btns">
+      <button class="modal-cancel" onclick="closeModal()">취소</button>
+      <button class="modal-ok" id="_mOk" style="background:${okColor||'var(--accent)'};color:${okColor?'#fff':'var(--accent-l)'}">${okLabel||'확인'}</button>
+    </div></div>`;
+  document.body.appendChild(ov);
+  document.getElementById('_mOk').onclick=()=>{closeModal();onOk();};
+}
+
+/* 반에 수행평가 배정 모달 */
+/* 수행평가 기준으로 반 배정 모달 */
+function showAssAssignModal(assId){
+  const ass=S.assessments.find(a=>a.id===assId);if(!ass)return;
+  if(!S.classes.length){
+    showConfirm('먼저 반을 추가해주세요.','확인',null,()=>{});return;
+  }
+  const rows=S.classes.map((c,i)=>{
+    const clr=CC[i%CC.length],bg2=CB[i%CB.length];
+    const on=(c.assessmentIds||[]).includes(assId);
+    const cnt=S.students.filter(s=>s.classId===c.id).length;
+    return `<div class="assign-row" onclick="toggleAssignFromAss('${assId}','${c.id}')">
+      <div class="assign-check ${on?'on':''}" id="achk-${c.id}"></div>
+      <div class="assign-info">
+        <div class="assign-name" style="color:${clr}">${esc(c.name)}</div>
+        <div class="assign-detail">${cnt}명 등록</div>
+      </div>
+    </div>`;
+  }).join('');
+  const ov=document.createElement('div');
+  ov.className='modal-overlay';
+  ov.innerHTML=`<div class="modal-box">
+    <div class="modal-title">반 배정 · ${esc(ass.name)}</div>
+    <div class="modal-sub">이 수행평가를 실시할 반을 선택하세요</div>
+    <div id="assign-list">${rows}</div>
+    <div class="modal-btns">
+      <button class="modal-ok" style="background:var(--accent);color:var(--accent-l)" onclick="closeModal();renderSub();updHd()">완료</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+
+function toggleAssignFromAss(assId,clsId){
+  const cls=S.classes.find(c=>c.id===clsId);if(!cls)return;
+  if(!cls.assessmentIds)cls.assessmentIds=[];
+  const idx=cls.assessmentIds.indexOf(assId);
+  if(idx>=0)cls.assessmentIds.splice(idx,1);
+  else cls.assessmentIds.push(assId);
+  save();
+  const chk=document.getElementById('achk-'+clsId);
+  if(chk)chk.className='assign-check'+(cls.assessmentIds.includes(assId)?' on':'');
+}
+
+/* 기준 복사 모달 */
+function showCopyModal(targetAssId){
+  const others=S.assessments.filter(a=>a.id!==targetAssId);
+  if(!others.length){showConfirm('복사할 다른 수행평가가 없습니다.','확인',null,()=>{});return;}
+  const btns=others.map(a=>`
+    <button onclick="copyCriteria('${targetAssId}','${a.id}')"
+      style="display:flex;align-items:center;justify-content:space-between;width:100%;text-align:left;
+             padding:12px 14px;margin-bottom:7px;background:var(--bg);border:.5px solid var(--border);
+             border-radius:var(--rs);cursor:pointer;font-family:inherit;color:var(--text)">
+      <span style="font-size:14px;font-weight:600">${esc(a.name)}</span>
+      <span style="font-size:12px;color:var(--text2)">${a.criteria.length}개 · ${a.criteria.reduce((s,c)=>s+c.max,0)}점</span>
+    </button>`).join('');
+  const ov=document.createElement('div');
+  ov.className='modal-overlay';
+  ov.innerHTML=`<div class="modal-box">
+    <div class="modal-title">기준 복사할 수행평가 선택</div>
+    <div class="modal-sub" style="margin-bottom:12px">선택한 수행평가의 채점 기준이 모두 복사됩니다</div>
+    ${btns}
+    <button class="modal-cancel" style="width:100%;margin-top:4px" onclick="closeModal()">취소</button>
+  </div>`;
+  document.body.appendChild(ov);
+}
+
+/* ═══════════════════════════════
+   헬퍼
+═══════════════════════════════ */
+const ci=cid=>S.classes.findIndex(c=>c.id===cid);
+const cc=cid=>{const i=ci(cid);return i>=0?CC[i%CC.length]:'#888';};
+const cb=cid=>{const i=ci(cid);return i>=0?CB[i%CB.length]:'#eee';};
+const cn=cid=>S.classes.find(c=>c.id===cid)?.name||'미지정';
+
+// 현재 반에 배정된 수행평가 목록
+function clsAssessments(clsId){
+  if(!clsId||clsId==='all')return S.assessments;
+  const cls=S.classes.find(c=>c.id===clsId);
+  if(!cls||!cls.assessmentIds||!cls.assessmentIds.length)return [];
+  return S.assessments.filter(a=>cls.assessmentIds.includes(a.id));
+}
+
+// 현재 선택된 수행평가 (반 컨텍스트 반영)
+function getSelAss(){
+  const pool=clsAssessments(filterCid);
+  if(!pool.length){selAssId=null;return null;}
+  let a=pool.find(x=>x.id===selAssId);
+  if(!a){selAssId=pool[0].id;a=pool[0];}
+  return a;
+}
+function getCrit(){return getSelAss()?.criteria||[];}
+function mxT(){return getCrit().reduce((s,c)=>s+c.max,0);}
+function gSc(sid,cid){const v=S.scores[selAssId]?.[sid]?.[cid];return v===undefined?'':v;}
+function gTot(sid){return getCrit().reduce((s,c)=>{const v=S.scores[selAssId]?.[sid]?.[c.id];return s+(v===''||v===undefined?0:Number(v));},0);}
+function isDone(sid){const cr=getCrit();return cr.length>0&&cr.every(c=>{const v=S.scores[selAssId]?.[sid]?.[c.id];return v!==undefined&&v!=='';});}
+function filt(){return filterCid==='all'?S.students:S.students.filter(s=>s.classId===filterCid);}
+
+function setSc(sid,cid,val){
+  const ass=getSelAss();if(!ass)return;
+  const c=ass.criteria.find(x=>x.id===cid);if(!c)return;
+  const v=val===''?'':Math.min(c.max,Math.max(0,parseInt(val)||0));
+  if(!S.scores[selAssId])S.scores[selAssId]={};
+  if(!S.scores[selAssId][sid])S.scores[selAssId][sid]={};
+  S.scores[selAssId][sid][cid]=v;save();
+}
+
+/* ═══════════════════════════════
+   헤더
+═══════════════════════════════ */
+function updHd(){
+  const cl=S.classes.length,st=S.students.length;
+  document.getElementById('hSub').textContent=cl>0?`${cl}개 반 · ${st}명`:'반을 먼저 추가하세요';
+  const ass=getSelAss();
+  if(ass&&st>0){
+    const d=S.students.filter(s=>isDone(s.id)).length;
+    document.getElementById('hBadge').textContent=`${d}/${st}명 완료`;
+  }else{document.getElementById('hBadge').textContent='';}
+}
+
+/* ═══════════════════════════════
+   탭 전환
+═══════════════════════════════ */
+function switchTab(t){
+  tab=t;if(t!=='score')selId=null;
+  ['setup','score','results','config'].forEach(id=>{
+    const el=document.getElementById('nav-'+id);
+    if(el)el.style.color=id===t?'var(--accent)':'var(--text2)';
+  });
+  document.getElementById('subNav').style.display=t==='setup'?'block':'none';
+  render();
+}
+function switchSetupTab(t){
+  setupTab=t;editingClsId=null;editingAssId=null;
+  ['class','student','assess'].forEach(id=>{
+    document.getElementById('stab-'+id).classList.toggle('on',id===t);
+  });
+  renderSub();
+}
+
+/* ═══════════════════════════════
+   메인 렌더
+═══════════════════════════════ */
+function render(){
+  updHd();
+  const el=document.getElementById('content');
+  if(tab==='setup'){el.innerHTML='<div id="sub"></div>';renderSub();}
+  else if(tab==='score')el.innerHTML=renderScore();
+  else if(tab==='results')el.innerHTML=renderResults();
+  else el.innerHTML=renderConfig();
+}
+function renderSub(){
+  const el=document.getElementById('sub');if(!el)return;
+  if(setupTab==='class')el.innerHTML=renderClassMgmt();
+  else if(setupTab==='student')el.innerHTML=renderStudentMgmt();
+  else el.innerHTML=renderAssessMgmt();
+}
+
+/* ═══════════════════════════════
+   ① 반 관리
+═══════════════════════════════ */
+function renderClassMgmt(){
+  const items=S.classes.map((c,i)=>{
+    const clr=CC[i%CC.length];
+    const total=S.students.filter(s=>s.classId===c.id).length;
+    const assPool=clsAssessments(c.id);
+
+    const header=editingClsId===c.id
+      ?`<div class="edit-row">
+          <input type="text" id="edit-cls-inp" value="${esc(c.name)}" class="f1" style="font-size:14px;padding:8px 10px">
+          <button class="btn-p" style="padding:8px 12px;font-size:13px" onclick="saveClsName('${c.id}')">저장</button>
+          <button class="btn-o" style="padding:8px 10px;font-size:13px" onclick="cancelEditCls()">취소</button>
+        </div>`
+      :`<div class="cls-header">
+          <div class="cls-dot" style="background:${clr}"></div>
+          <span class="cls-name" style="color:${clr}">${esc(c.name)}</span>
+          <span style="font-size:12px;color:var(--text2);margin-left:2px">${total}명</span>
+          <button class="btn-sm" onclick="startEditCls('${c.id}')">✎</button>
+          <button class="btn-sm-red" onclick="deleteClass('${c.id}')">✕ 삭제</button>
+        </div>`;
+
+    const chipHtml=assPool.length>0
+      ?assPool.map(a=>`<span class="ass-chip">${esc(a.name)}</span>`).join('')
+      :`<span style="font-size:12px;color:var(--text3)">배정된 수행평가 없음</span>`;
+
+    return `<div class="cls-card">
+      ${header}
+      <div class="ass-chips" style="margin-top:8px">${chipHtml}</div>
+    </div>`;
+  }).join('');
+
+  return `<div class="tc">
+    <div class="card">
+      <div class="lbl">반 추가</div>
+      <div class="row">
+        <input type="text" id="inp-clsname" placeholder="반 이름 (예: 1반, 2-3반)" class="f1"
+          onkeydown="if(event.key==='Enter')addClassFn()">
+        <button class="btn-p" onclick="addClassFn()">추가</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="lbl">반별 현황</div>
+      ${S.classes.length>0?items:`<div class="empty" style="padding:20px 0">
+        <div style="font-size:32px;margin-bottom:8px">🏫</div>
+        <div style="font-size:14px">반을 추가해주세요</div>
+      </div>`}
+    </div>
+  </div>`;
+}
+
+function addClassFn(){
+  const inp=document.getElementById('inp-clsname');
+  const n=inp?.value?.trim();if(!n)return;
+  S.classes.push({id:uid(),name:n,assessmentIds:[]});
+  save();renderSub();updHd();inp.value='';
+}
+function startEditCls(id){
+  editingClsId=id;renderSub();
+  setTimeout(()=>{const el=document.getElementById('edit-cls-inp');if(el){el.focus();el.select();}},30);
+}
+function cancelEditCls(){editingClsId=null;renderSub();}
+function saveClsName(id){
+  const inp=document.getElementById('edit-cls-inp');
+  const name=inp?.value?.trim();if(!name)return;
+  const cls=S.classes.find(c=>c.id===id);if(cls){cls.name=name;save();}
+  editingClsId=null;renderSub();updHd();
+}
+function deleteClass(id){
+  const cls=S.classes.find(c=>c.id===id);if(!cls)return;
+  const cnt=S.students.filter(s=>s.classId===id).length;
+  showConfirm(
+    cnt>0?`<strong>'${esc(cls.name)}'</strong>을 삭제하면<br>소속 학생 <strong>${cnt}명</strong>도 함께 삭제됩니다.`
+        :`<strong>'${esc(cls.name)}'</strong>을 삭제할까요?`,
+    '삭제','#e24b4a',()=>{
+      S.students=S.students.filter(s=>s.classId!==id);
+      S.classes=S.classes.filter(c=>c.id!==id);
+      if(filterCid===id)filterCid='all';
+      editingClsId=null;save();renderSub();updHd();
+    });
+}
+function doResetAll(){
+  showConfirm('반, 학생, 수행평가, 점수를<br><strong>모두 삭제</strong>합니다.<br>되돌릴 수 없습니다.','전체 초기화','#e24b4a',()=>{
+    S={classes:[],students:[],assessments:[],scores:{}};
+    selAssId=null;filterCid='all';selId=null;editingClsId=null;expandedAssId=null;
+    save();render();
+  });
+}
+
+/* ═══════════════════════════════
+   ② 학생 명단
+═══════════════════════════════ */
+function renderStudentMgmt(){
+  if(!S.classes.length)return`<div class="tc"><div class="card" style="text-align:center;padding:28px 16px">
+    <div style="font-size:32px;margin-bottom:10px">🏫</div>
+    <div style="font-size:14px;color:var(--text2);margin-bottom:14px">반 관리 탭에서 반을 먼저 추가해주세요</div>
+    <button class="btn-p" onclick="switchSetupTab('class')">반 관리로 이동</button>
+  </div></div>`;
+
+  // stuTabCls 초기값 보정
+  if(!stuTabCls||!S.classes.find(c=>c.id===stuTabCls)) stuTabCls=S.classes[0]?.id||'';
+  const selCls=stuTabCls;
+  const stuList=S.students.filter(s=>s.classId===selCls);
+
+  const clsOpts=S.classes.map(c=>`<option value="${c.id}" ${c.id===selCls?'selected':''}>${esc(c.name)}</option>`).join('');
+
+  const rows=stuList.map(s=>`
+    <div class="stu-row">
+      <span class="sid-col">${esc(s.studentId||'')}</span>
+      <span style="flex:1;font-size:15px">${esc(s.name)}</span>
+      <button onclick="deleteStudent('${s.id}')"
+        style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;padding:2px 8px;flex-shrink:0">✕</button>
+    </div>`).join('');
+
+  return`<div class="tc">
+    <div class="card">
+      <div style="margin-bottom:12px">
+        <select id="stu-cls-sel" onchange="stuTabCls=this.value;renderSub()">
+          ${clsOpts}
+        </select>
+      </div>
+
+      <div class="row" style="margin-bottom:10px">
+        <input type="text" id="inp-sid" placeholder="학번" style="width:88px;flex-shrink:0"
+          onkeydown="if(event.key==='Enter')document.getElementById('inp-sname').focus()">
+        <input type="text" id="inp-sname" placeholder="이름" class="f1"
+          onkeydown="if(event.key==='Enter')addStudentFn()">
+        <button class="btn-p" onclick="addStudentFn()">추가</button>
+      </div>
+
+      <div class="upload-box" onclick="triggerStuFile()" style="margin-bottom:4px">
+        <div style="font-size:18px;margin-bottom:2px">📄</div>
+        <div style="font-size:12px;font-weight:600">파일로 일괄 등록</div>
+        <div style="font-size:11px;color:var(--text2)">형식: 학번,이름 (한 줄에 한 명)</div>
+      </div>
+
+      ${stuList.length>0?`
+        <div style="border-top:.5px solid var(--border);margin-top:12px;padding-top:4px">
+          <div style="font-size:11px;color:var(--text3);padding:6px 0 4px">${stuList.length}명</div>
+          ${rows}
+        </div>
+      `:`<div style="text-align:center;color:var(--text3);font-size:13px;padding:14px 0">등록된 학생이 없습니다</div>`}
+    </div>
+  </div>`;
+}
+
+function addStudentFn(){
+  const cls=stuTabCls;
+  const sid=document.getElementById('inp-sid')?.value?.trim()||'';
+  const name=document.getElementById('inp-sname')?.value?.trim();
+  if(!cls){alert('반을 선택하세요');return;}
+  if(!name){alert('이름을 입력하세요');return;}
+  S.students.push({id:uid(),classId:cls,studentId:sid,name});
+  save();renderSub();updHd();
+  document.getElementById('inp-sid').value='';
+  document.getElementById('inp-sname').value='';
+  document.getElementById('inp-sname').focus();
+}
+function deleteStudent(id){S.students=S.students.filter(s=>s.id!==id);save();renderSub();updHd();}
+function triggerStuFile(){
+  const cls=stuTabCls;
+  if(!cls){alert('반을 먼저 선택하세요');return;}
+  document.getElementById('stu-file').click();
+}
+function handleStuFile(e){
+  const f=e.target.files[0];if(!f)return;
+  const cls=stuTabCls;
+  if(!cls){alert('반을 먼저 선택하세요');return;}
+  const rd=new FileReader();
+  rd.onload=ev=>{
+    ev.target.result.trim().split(/\r?\n/).filter(l=>l.trim()).forEach(line=>{
+      const p=line.split(',').map(x=>x.trim().replace(/^"|"$/g,''));
+      S.students.push(p.length>=2?{id:uid(),classId:cls,studentId:p[0],name:p[1]}:{id:uid(),classId:cls,studentId:'',name:p[0]});
+    });
+    save();renderSub();updHd();
+  };
+  rd.readAsText(f);e.target.value='';
+}
+
+/* ═══════════════════════════════
+   ③ 수행평가 관리
+═══════════════════════════════ */
+function renderAssessMgmt(){
+  const items=S.assessments.map(a=>{
+    const mx=a.criteria.reduce((s,c)=>s+c.max,0);
+    const isExp=expandedAssId===a.id;
+    const isEdit=editingAssId===a.id;
+
+    const header=isEdit
+      ?`<div class="edit-row">
+          <input type="text" id="edit-ass-inp" value="${esc(a.name)}" class="f1" style="font-size:14px;padding:8px 10px">
+          <button class="btn-p" style="padding:8px 12px;font-size:13px" onclick="saveAssName('${a.id}')">저장</button>
+          <button class="btn-o" style="padding:8px 10px;font-size:13px" onclick="cancelEditAss()">취소</button>
+        </div>`
+      :`<div class="ass-header">
+          <span class="ass-name">${esc(a.name)}</span>
+          <span style="font-size:11px;color:var(--text2);flex-shrink:0">${a.criteria.length}개·${mx}점</span>
+          <button class="btn-sm" onclick="startEditAss('${a.id}')">✎</button>
+          <button class="btn-sm-red" onclick="deleteAssessment('${a.id}')">✕</button>
+          <button class="btn-sm" onclick="toggleAss('${a.id}')">${isExp?'▲':'▼'}</button>
+        </div>`;
+
+    // 배정 반 표시 + 반 배정 버튼
+    const assignedCls=S.classes.filter(c=>(c.assessmentIds||[]).includes(a.id));
+    const assignSection=`<div style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+      ${assignedCls.length>0
+        ?assignedCls.map(_c=>{const ci2=S.classes.indexOf(_c);const clr2=CC[ci2%CC.length],bg2=CB[ci2%CB.length];return`<span style="font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600;background:${bg2};color:${clr2}">${esc(_c.name)}</span>`;}).join('')
+        :`<span style="font-size:12px;color:var(--text3)">배정된 반 없음</span>`}
+      <button class="btn-sm-acc" style="margin-left:auto;flex-shrink:0" onclick="showAssAssignModal('${a.id}')">반 배정 ›</button>
+    </div>`;
+
+    const critRows=a.criteria.map((c,i)=>`
+      <div style="display:flex;align-items:center;padding:8px 0;border-bottom:${i<a.criteria.length-1?'.5px solid var(--border)':'none'}">
+        <span style="flex:1;font-size:14px">${esc(c.name)}</span>
+        <span style="color:var(--accent);font-weight:600;font-size:13px;margin-right:8px">${c.max}점</span>
+        <button onclick="deleteCritFromAss('${a.id}','${c.id}')"
+          style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:2px 6px">✕</button>
+      </div>`).join('');
+
+    const body=isExp?`
+      <div class="ass-body">
+        ${a.criteria.length>0?critRows:`<div style="text-align:center;color:var(--text3);font-size:13px;padding:8px 0">기준이 없습니다</div>`}
+        <div class="row" style="margin-top:12px">
+          <input type="text" id="cname-${a.id}" placeholder="기준명" class="f1"
+            onkeydown="if(event.key==='Enter')document.getElementById('cmax-${a.id}').focus()">
+          <input type="number" id="cmax-${a.id}" placeholder="배점" style="width:62px"
+            onkeydown="if(event.key==='Enter')addCritToAss('${a.id}')">
+          <button class="btn-p" style="padding:10px 12px" onclick="addCritToAss('${a.id}')">추가</button>
+        </div>
+        <div class="upload-box" style="margin-top:8px" onclick="triggerCritFile('${a.id}')">
+          <div style="font-size:18px;margin-bottom:2px">📄</div>
+          <div style="font-size:12px;font-weight:600">파일로 기준 일괄 등록</div>
+          <div style="font-size:11px;color:var(--text2)">형식: 기준명,배점</div>
+        </div>
+        ${S.assessments.length>1?`
+        <button class="btn-o" style="width:100%;margin-top:4px;font-size:13px" onclick="showCopyModal('${a.id}')">
+          📋 다른 수행평가에서 기준 복사
+        </button>`:''}
+      </div>`:'';
+
+    return`<div class="ass-card">
+      ${header}
+      ${assignSection}
+      ${body}
+    </div>`;
+  }).join('');
+
+  return`<div class="tc">
+    <div class="card">
+      <div class="lbl">수행평가 추가</div>
+      <div class="row">
+        <input type="text" id="inp-assname" placeholder="수행평가 이름 (예: 1차 글쓰기)" class="f1"
+          onkeydown="if(event.key==='Enter')addAssessment()">
+        <button class="btn-p" onclick="addAssessment()">추가</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="lbl">수행평가 목록</div>
+      ${S.assessments.length>0?items:`<div class="empty" style="padding:20px 0">
+        <div style="font-size:32px;margin-bottom:8px">📝</div>
+        <div style="font-size:14px">수행평가를 추가해주세요</div>
+      </div>`}
+    </div>
+  </div>`;
+}
+
+function addAssessment(){
+  const inp=document.getElementById('inp-assname');
+  const n=inp?.value?.trim();if(!n)return;
+  const a={id:uid(),name:n,criteria:[]};
+  S.assessments.push(a);
+  if(!selAssId)selAssId=a.id;
+  expandedAssId=a.id;
+  save();renderSub();updHd();inp.value='';
+}
+function deleteAssessment(id){
+  const a=S.assessments.find(x=>x.id===id);if(!a)return;
+  showConfirm(`<strong>'${esc(a.name)}'</strong>과 해당 점수 기록을<br>모두 삭제할까요?`,'삭제','#e24b4a',()=>{
+    S.assessments=S.assessments.filter(x=>x.id!==id);
+    delete S.scores[id];
+    // 반 배정에서도 제거
+    S.classes.forEach(c=>{c.assessmentIds=(c.assessmentIds||[]).filter(aid=>aid!==id);});
+    if(selAssId===id)selAssId=S.assessments[0]?.id||null;
+    if(expandedAssId===id)expandedAssId=null;
+    save();renderSub();updHd();
+  });
+}
+function startEditAss(id){editingAssId=id;renderSub();setTimeout(()=>{const el=document.getElementById('edit-ass-inp');if(el){el.focus();el.select();}},30);}
+function cancelEditAss(){editingAssId=null;renderSub();}
+function saveAssName(id){
+  const inp=document.getElementById('edit-ass-inp');
+  const name=inp?.value?.trim();if(!name)return;
+  const a=S.assessments.find(x=>x.id===id);if(a){a.name=name;save();}
+  editingAssId=null;renderSub();updHd();
+}
+function toggleAss(id){expandedAssId=expandedAssId===id?null:id;editingAssId=null;renderSub();}
+function addCritToAss(assId){
+  const n=document.getElementById('cname-'+assId)?.value?.trim();
+  const m=parseInt(document.getElementById('cmax-'+assId)?.value);
+  if(!n||isNaN(m)||m<=0)return;
+  const a=S.assessments.find(x=>x.id===assId);if(!a)return;
+  a.criteria.push({id:uid(),name:n,max:m});save();
+  document.getElementById('cname-'+assId).value='';
+  document.getElementById('cmax-'+assId).value='';
+  document.getElementById('cname-'+assId).focus();
+  renderSub();
+}
+function deleteCritFromAss(assId,critId){
+  const a=S.assessments.find(x=>x.id===assId);if(!a)return;
+  a.criteria=a.criteria.filter(c=>c.id!==critId);save();renderSub();
+}
+function triggerCritFile(assId){critFileAssId=assId;document.getElementById('crit-file').click();}
+function handleCritFile(e){
+  const f=e.target.files[0];if(!f)return;
+  const a=S.assessments.find(x=>x.id===critFileAssId);if(!a)return;
+  const rd=new FileReader();
+  rd.onload=ev=>{
+    ev.target.result.trim().split(/\r?\n/).filter(l=>l.trim()).forEach(line=>{
+      const p=line.split(',').map(x=>x.trim().replace(/^"|"$/g,''));
+      const m=parseInt(p[1]);
+      if(p[0]&&!isNaN(m)&&m>0)a.criteria.push({id:uid(),name:p[0],max:m});
+    });
+    save();renderSub();
+  };
+  rd.readAsText(f);e.target.value='';
+}
+function copyCriteria(targetId,sourceId){
+  closeModal();
+  const src=S.assessments.find(a=>a.id===sourceId);
+  const tgt=S.assessments.find(a=>a.id===targetId);
+  if(!src||!tgt)return;
+  src.criteria.forEach(c=>tgt.criteria.push({id:uid(),name:c.name,max:c.max}));
+  save();renderSub();
+}
+
+/* ═══════════════════════════════
+   선택 바 & 픽커 바텀시트
+═══════════════════════════════ */
+function selBarHtml(){
+  // 반이 1개 이하면 바 자체를 숨김
+  if(S.classes.length<=1) return '';
+
+  const pool=clsAssessments(filterCid);
+  const clsName = filterCid==='all'?'전체':esc(cn(filterCid));
+  const clsColor = filterCid!=='all'?cc(filterCid):'var(--accent)';
+  const clsActive = filterCid!=='all';
+
+  const assAss = getSelAss();
+  const showAss = pool.length>1; // 배정된 수행평가 2개 이상일 때만
+
+  return`<div class="sel-bar">
+    <div class="sel-pill ${clsActive?'active':''}" onclick="openClsPicker()" style="${clsActive?`border-color:${clsColor};background:${cb(filterCid)}`:''}">
+      <span class="sel-pill-label">반</span>
+      <span class="sel-pill-val" style="${clsActive?`color:${clsColor}`:''}">${clsName}</span>
+      <span class="sel-pill-arrow">▼</span>
+    </div>
+    ${showAss?`<div class="sel-pill active" onclick="openAssPicker()" style="border-color:var(--accent);background:var(--accent-l)">
+      <span class="sel-pill-label" style="color:var(--accent-m)">수행평가</span>
+      <span class="sel-pill-val" style="color:var(--accent)">${esc(assAss?.name||'선택')}</span>
+      <span class="sel-pill-arrow" style="color:var(--accent-m)">▼</span>
+    </div>`:''}
+  </div>`;
+}
+
+function openClsPicker(){
+  const ov=document.createElement('div');
+  ov.className='picker-sheet';
+  const items=[{id:'all',name:'전체',dot:'var(--text3)',sub:'모든 반'},...S.classes.map((c,i)=>({
+    id:c.id, name:c.name,
+    dot:CC[i%CC.length],
+    sub:`${S.students.filter(s=>s.classId===c.id).length}명 · 수행평가 ${(c.assessmentIds||[]).length}개`
+  }))];
+  const rows=items.map(item=>`
+    <div class="picker-item ${filterCid===item.id?'picked':''}" onclick="pickCls('${item.id}')">
+      <div class="picker-item-dot" style="background:${item.dot}"></div>
+      <div style="flex:1;min-width:0">
+        <div class="picker-item-name">${esc(item.name)}</div>
+        <div class="picker-item-sub">${item.sub}</div>
+      </div>
+      <div class="picker-item-check">✓</div>
+    </div>`).join('');
+  ov.innerHTML=`
+    <div class="picker-dim" onclick="closePicker()"></div>
+    <div class="picker-box">
+      <div class="picker-handle"></div>
+      <div class="picker-title">반 선택</div>
+      <div class="picker-list">${rows}</div>
+    </div>`;
+  document.body.appendChild(ov);
+}
+
+function openAssPicker(){
+  const pool=clsAssessments(filterCid);
+  if(pool.length<=1)return;
+  const ov=document.createElement('div');
+  ov.className='picker-sheet';
+  const rows=pool.map(a=>`
+    <div class="picker-item ${selAssId===a.id?'picked':''}" onclick="pickAss('${a.id}')">
+      <div style="flex:1;min-width:0">
+        <div class="picker-item-name">${esc(a.name)}</div>
+        <div class="picker-item-sub">${a.criteria.length}개 기준 · 총 ${a.criteria.reduce((s,c)=>s+c.max,0)}점</div>
+      </div>
+      <div class="picker-item-check">✓</div>
+    </div>`).join('');
+  ov.innerHTML=`
+    <div class="picker-dim" onclick="closePicker()"></div>
+    <div class="picker-box">
+      <div class="picker-handle"></div>
+      <div class="picker-title">수행평가 선택</div>
+      <div class="picker-list">${rows}</div>
+    </div>`;
+  document.body.appendChild(ov);
+}
+
+function closePicker(){document.querySelector('.picker-sheet')?.remove();}
+function pickCls(cid){closePicker();filterCid=cid;selId=null;selAssId=null;render();}
+function pickAss(id){closePicker();selAssId=id;selId=null;render();}
+
+// 구 방식 (학생명단 탭 필터는 여전히 가로 칩 사용)
+function setClsFilter(cid){filterCid=cid;selId=null;selAssId=null;render();}
+
+/* ═══════════════════════════════
+   채점 탭
+═══════════════════════════════ */
+function renderScore(){
+  // 반이 여러 개인데 아직 선택 안 했으면 선택 유도
+  if(filterCid==='all'&&S.classes.length>1){
+    return`<div class="tc">
+      <div class="card" style="text-align:center;padding:28px 16px">
+        <div style="font-size:36px;margin-bottom:10px">👆</div>
+        <div style="font-size:15px;font-weight:600;margin-bottom:8px">반을 먼저 선택해주세요</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:16px">반마다 수행평가가 다를 수 있습니다</div>
+        <button class="btn-p" onclick="openClsPicker()">반 선택하기 ▼</button>
+      </div>
+    </div>`;
+  }
+
+  const ass=getSelAss();
+  if(!S.students.length||!ass||!ass.criteria.length){
+    let msg='';
+    if(!S.students.length)msg='학생 명단을 먼저 입력해주세요';
+    else if(!ass)msg='이 반에 배정된 수행평가가 없습니다<br>반 정보 탭에서 배정해주세요';
+    else msg='채점 기준을 먼저 추가해주세요';
+    return`<div class="tc"><div class="empty">
+      <div style="font-size:40px;margin-bottom:12px">📋</div>
+      <div style="font-size:15px;line-height:1.8;margin-bottom:16px">${msg}</div>
+      <button class="btn-p" onclick="switchTab('setup')">반 정보로 이동</button>
+    </div></div>`;
+  }
+
+  if(!selId){
+    const fs=filt();
+    // 미완료 먼저, 완료 나중
+    const pending=fs.filter(s=>!isDone(s.id));
+    const done=fs.filter(s=>isDone(s.id));
+    const sorted=[...pending,...done];
+
+    const cards=sorted.map(s=>{
+      const d=isDone(s.id),tot=gTot(s.id);
+      const badgeBg=d?'var(--accent-s)':cb(s.classId);
+      const badgeCol=d?'var(--accent)':cc(s.classId);
+      return`<button class="stu-card ${d?'done':''}" style="border-left-color:${d?'var(--accent-m)':'var(--accent-m)'}"
+        onclick="selId='${s.id}';render()">
+        <span class="cbadge" style="background:${badgeBg};color:${badgeCol}">${esc(cn(s.classId))}</span>
+        <span class="sid-col">${esc(s.studentId||'')}</span>
+        <span class="stu-card-name" style="flex:1;font-size:15px;font-weight:600;text-align:left">${esc(s.name)}</span>
+        <span class="stu-card-score" style="font-size:13px;color:var(--accent);font-weight:600">${tot}점${d?' ✓':''}</span>
+        <span style="margin-left:6px;color:var(--text3);font-size:18px">›</span>
+      </button>`;
+    }).join('');
+
+    // 반/수행평가 선택 바 (결과탭 selBarHtml과 동일한 pill 디자인)
+    const needBar=S.classes.length>1||clsAssessments(filterCid).length>1;
+    const clrActive=filterCid!=='all';
+    const clsLabel=filterCid==='all'?'전체':esc(cn(filterCid));
+    const clsDotClr=filterCid!=='all'?cc(filterCid):'var(--text3)';
+    const assPillAss=getSelAss();
+    const showAssPill=clsAssessments(filterCid).length>1;
+    const switchRow=needBar?`
+      <div class="sel-bar" style="margin-bottom:10px">
+        ${S.classes.length>1?`
+        <div class="sel-pill ${clrActive?'active':''}" onclick="openClsPicker()"
+          style="${clrActive?`border-color:${cc(filterCid)};background:${cb(filterCid)}`:''}">
+          <div style="width:8px;height:8px;border-radius:50%;background:${clsDotClr};flex-shrink:0"></div>
+          <span class="sel-pill-label">반</span>
+          <span class="sel-pill-val" style="${clrActive?`color:${cc(filterCid)}`:''}">${clsLabel}</span>
+          <span class="sel-pill-arrow" style="${clrActive?`color:${cc(filterCid)}`:''}">▼</span>
+        </div>`:''}
+        ${showAssPill?`
+        <div class="sel-pill active" onclick="openAssPicker()"
+          style="border-color:var(--accent);background:var(--accent-l)">
+          <span class="sel-pill-label" style="color:var(--accent-m)">수행평가</span>
+          <span class="sel-pill-val" style="color:var(--accent)">${esc(assPillAss?.name||'선택')}</span>
+          <span class="sel-pill-arrow" style="color:var(--accent-m)">▼</span>
+        </div>`:''}
+      </div>`:'';
+
+    return`<div class="tc">
+      ${switchRow}
+      ${fs.length===0?'<div style="text-align:center;color:var(--text3);padding:20px">해당 반 학생이 없습니다</div>':''}
+      ${cards}
+    </div>`;
+  }
+
+  const s=S.students.find(x=>x.id===selId);
+  const tot=gTot(selId),mx=mxT();
+  const fs=filt(),idx=fs.findIndex(x=>x.id===selId);
+  const crit=getCrit();
+
+  const scRows=crit.map(c=>{
+    const val=gSc(selId,c.id),num=val===''?0:Number(val);
+    const pct=c.max>0?num/c.max:0;
+    const barC=pct>=0.8?'var(--accent)':pct>=0.5?'var(--accent-m)':'var(--accent-s)';
+    return`<div class="sc-row">
+      <div class="sc-left">
+        <div class="sc-crit-name">${esc(c.name)}</div>
+        <div class="sc-mini-bar">
+          <div class="sc-mini-fill" id="bar-${c.id}" style="width:${pct*100}%;background:${barC}"></div>
+        </div>
+      </div>
+      <div class="sc-right">
+        <input class="sc-inp" id="si-${c.id}" type="number" min="0" max="${c.max}"
+          value="${val}" placeholder="—"
+          oninput="liveScore('${selId}','${c.id}',this.value)"
+          onkeydown="if(event.key==='Enter')nextFocus('${c.id}')">
+        <span class="sc-slash">/</span>
+        <span class="sc-max">${c.max}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  const geminiSection=CFG.geminiKey
+    ?`<div class="upload-box" style="margin-top:12px" onclick="document.getElementById('ai-file').click()">
+        <div style="font-size:22px;margin-bottom:4px">🤖</div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:2px">결과물 업로드하여 자동 채점</div>
+        <div style="font-size:12px;color:var(--text2)">사진, 이미지, PDF 파일</div>
+      </div>
+      <div id="ai-msg" class="ai-msg" style="display:none"></div>
+      <div class="hint">AI가 점수를 제안합니다. 반드시 검토 후 사용하세요.</div>`
+    :`<div style="margin-top:10px;font-size:13px;color:var(--text2)">
+        설정 탭에서 Gemini API 키를 입력하면 자동 채점을 사용할 수 있습니다.
+        <button onclick="switchTab('config')" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:13px;font-family:inherit;text-decoration:underline">설정 이동</button>
+      </div>`;
+
+  return`<div class="tc">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <button class="btn-o" style="padding:8px 12px;font-size:13px" onclick="selId=null;render()">← 목록</button>
+      <div style="flex:1;text-align:center;overflow:hidden">
+        <span class="cbadge" style="background:${cb(s?.classId)};color:${cc(s?.classId)}">${esc(cn(s?.classId))}</span>
+        ${s?.studentId?`<span style="font-size:12px;color:var(--text2)">${esc(s.studentId)} </span>`:''}
+        <span style="font-size:16px;font-weight:700">${esc(s?.name)}</span>
+      </div>
+      <div class="tot-badge"><span id="tot-now">${tot}</span><span>/${mx}</span></div>
+    </div>
+    ${S.assessments.length>1?`<div class="info-bar">📝 ${esc(ass.name)}</div>`:''}
+    <div class="card" style="padding:6px 14px">${scRows}</div>
+    <div class="card">
+      <div style="font-size:14px;font-weight:600">✦ Gemini AI 분석</div>
+      ${geminiSection}
+    </div>
+    <div class="pn-row">
+      ${idx>0?`<button class="btn-o" onclick="selId='${fs[idx-1].id}';render()">← 이전</button>`:''}
+      ${idx<fs.length-1?`<button class="btn-p" onclick="selId='${fs[idx+1].id}';render()">다음 →</button>`:''}
+    </div>
+  </div>`;
+}
+
+function liveScore(sid,cid,val){
+  setSc(sid,cid,val);
+  const c=getCrit().find(x=>x.id===cid);if(!c)return;
+  const num=val===''?0:Math.min(c.max,Math.max(0,parseInt(val)||0));
+  const pct=c.max>0?num/c.max:0;
+  const barC=pct>=0.8?'var(--accent)':pct>=0.5?'var(--accent-m)':'var(--accent-s)';
+  const bar=document.getElementById('bar-'+cid);
+  if(bar){bar.style.width=`${pct*100}%`;bar.style.background=barC;}
+  const tot=document.getElementById('tot-now');
+  if(tot)tot.textContent=gTot(sid);
+  updHd();
+}
+function nextFocus(cid){
+  const ids=getCrit().map(c=>c.id);
+  const i=ids.indexOf(cid);
+  if(i<ids.length-1){const el=document.getElementById('si-'+ids[i+1]);if(el){el.focus();el.select();}}
+}
+
+/* ═══════════════════════════════
+   결과 탭
+═══════════════════════════════ */
+function renderResults(){
+  if(filterCid==='all'&&S.classes.length>1){
+    return`<div class="tc">
+      <div class="card" style="text-align:center;padding:28px 16px">
+        <div style="font-size:36px;margin-bottom:10px">👆</div>
+        <div style="font-size:15px;font-weight:600;margin-bottom:8px">반을 먼저 선택해주세요</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:16px">반마다 수행평가가 다를 수 있습니다</div>
+        <button class="btn-p" onclick="openClsPicker()">반 선택하기 ▼</button>
+      </div>
+    </div>`;
+  }
+
+  const ass=getSelAss();
+  if(!S.students.length||!ass)return`<div class="tc"><div class="empty">
+    <div style="font-size:40px;margin-bottom:12px">📊</div>
+    <div style="font-size:14px">${!S.students.length?'학생 데이터가 없습니다':'이 반에 배정된 수행평가가 없습니다'}</div>
+  </div></div>`;
+
+  const target=filterCid==='all'?S.students:S.students.filter(s=>s.classId===filterCid);
+  const totals=target.map(s=>gTot(s.id));
+  const avg=totals.length?Math.round(totals.reduce((a,b)=>a+b,0)/totals.length*10)/10:0;
+  const maxS=totals.length?Math.max(...totals):0,minS=totals.length?Math.min(...totals):0;
+  const dn=target.filter(s=>isDone(s.id)).length;
+  const showCls=filterCid==='all';
+  const crit=getCrit();
+
+  const thCols=`${showCls?'<th>반</th>':''}<th>학번</th><th style="text-align:left">이름</th>
+    ${crit.map(c=>`<th>${esc(c.name)}<br><span style="font-size:10px;font-weight:400;color:var(--text2)">/${c.max}</span></th>`).join('')}
+    <th style="color:var(--accent)">합계<br><span style="font-size:10px;font-weight:400">/${mxT()}</span></th>`;
+
+  const rows=target.map((s,i)=>{
+    const d=isDone(s.id);
+    return`<tr style="background:${i%2?'var(--bg)':''}">
+      ${showCls?`<td><span class="cbadge" style="background:${cb(s.classId)};color:${cc(s.classId)}">${esc(cn(s.classId))}</span></td>`:''}
+      <td style="color:var(--text2);font-size:11px">${esc(s.studentId||'')}</td>
+      <td style="text-align:left;font-weight:600">${esc(s.name)}</td>
+      ${crit.map(c=>{const v=S.scores[selAssId]?.[s.id]?.[c.id];return`<td style="color:${v===undefined||v===''?'var(--text3)':'var(--text)'}">${v===undefined||v===''?'—':v}</td>`;}).join('')}
+      <td style="font-weight:600;color:${d?'var(--accent)':'var(--text)'}">${gTot(s.id)}</td>
+    </tr>`;
+  }).join('');
+
+  const avgCols=crit.map(c=>{
+    const vs=target.map(s=>S.scores[selAssId]?.[s.id]?.[c.id]).filter(v=>v!==undefined&&v!=='').map(Number);
+    return`<td style="color:var(--text2)">${vs.length?Math.round(vs.reduce((a,b)=>a+b,0)/vs.length*10)/10:'—'}</td>`;
+  }).join('');
+
+  return`<div class="tc">
+    ${selBarHtml()}
+    ${S.assessments.length>1?`<div class="info-bar">📝 ${esc(ass.name)}</div>`:''}
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-lbl">채점 완료</div><div class="stat-val">${dn} / ${target.length}명</div></div>
+      <div class="stat-card"><div class="stat-lbl">평균 점수</div><div class="stat-val">${avg}점</div></div>
+      <div class="stat-card"><div class="stat-lbl">최고 점수</div><div class="stat-val">${maxS}점</div></div>
+      <div class="stat-card"><div class="stat-lbl">최저 점수</div><div class="stat-val">${minS}점</div></div>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>${thCols}</tr></thead>
+        <tbody>
+          ${rows}
+          ${target.length>0?`<tr class="avg-row">
+            ${showCls?'<td></td>':''}<td></td>
+            <td style="text-align:left;font-weight:600;color:var(--text2)">평균</td>
+            ${avgCols}
+            <td style="font-weight:600;color:var(--text2)">${avg}</td>
+          </tr>`:''}
+        </tbody>
+      </table>
+    </div>
+    <button class="btn-p" style="width:100%;padding:13px;font-size:15px" onclick="exportExcel()">
+      ${filterCid==='all'?'전체 엑셀 내려받기':'선택한 반 엑셀 내려받기'}
+    </button>
+  </div>`;
+}
+
+/* ═══════════════════════════════
+   설정 탭
+═══════════════════════════════ */
+function renderConfig(){
+  const swatches=ACCENT_THEMES.map((t,i)=>`
+    <div class="swatch ${CFG.accentIdx===i?'active':''}" style="background:${t.accent}" onclick="setAccent(${i})" title="${t.name}"></div>`).join('');
+  const dmOpts=['auto','light','dark'],dmLabels=['자동','라이트','다크'];
+  const segBtns=dmOpts.map((v,i)=>`
+    <button class="seg-btn ${CFG.darkMode===v?'active':''}" onclick="setDarkMode('${v}')">${dmLabels[i]}</button>`).join('');
+
+  return`<div class="tc">
+    <div class="card">
+      <div class="lbl">AI 자동 채점</div>
+      <div class="theme-row" style="flex-direction:column;align-items:flex-start">
+        <div style="margin-bottom:8px">
+          <div class="theme-label">Gemini API 키</div>
+          <div class="theme-sub">채점 탭의 AI 자동 채점에 사용됩니다</div>
+        </div>
+        <div class="row" style="width:100%">
+          <input type="password" id="gemini-key-inp" placeholder="API 키 입력" class="f1" value="${esc(CFG.geminiKey||'')}">
+          <button class="btn-p" style="padding:10px 14px;font-size:13px" onclick="saveGeminiKey()">저장</button>
+        </div>
+        ${CFG.geminiKey?`<div style="font-size:12px;color:var(--accent);margin-top:6px">✓ API 키가 저장되어 있습니다</div>`:''}
+      </div>
+    </div>
+    <div class="card">
+      <div class="lbl">테마</div>
+      <div class="theme-row">
+        <div><div class="theme-label">화면 모드</div></div>
+        <div class="seg-ctrl">${segBtns}</div>
+      </div>
+      <div class="theme-row" style="flex-direction:column;align-items:flex-start">
+        <div class="theme-label" style="margin-bottom:10px">강조 색상</div>
+        <div class="color-swatches">${swatches}</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="lbl">데이터 백업 · 복원</div>
+      <div class="theme-row">
+        <div>
+          <div class="theme-label">백업 파일 내려받기</div>
+          <div class="theme-sub">모든 데이터를 JSON 파일로 저장</div>
+        </div>
+        <button class="btn-o" style="font-size:13px;padding:8px 12px" onclick="exportBackup()">내려받기</button>
+      </div>
+      <div class="theme-row">
+        <div>
+          <div class="theme-label">백업 파일 불러오기</div>
+          <div class="theme-sub">이전 백업 파일로 데이터 복원</div>
+        </div>
+        <button class="btn-o" style="font-size:13px;padding:8px 12px" onclick="document.getElementById('backup-file').click()">불러오기</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="lbl">데이터 관리</div>
+      <div class="theme-row">
+        <div>
+          <div class="theme-label">전체 초기화</div>
+          <div class="theme-sub">모든 반, 학생, 수행평가, 점수 삭제</div>
+        </div>
+        <button class="btn-o" style="color:#e24b4a;border-color:#e24b4a44;font-size:13px;padding:8px 12px"
+          onclick="doResetAll()">초기화</button>
+      </div>
+    </div>
+    <div class="card" style="color:var(--text2)">
+      <div class="lbl">정보</div>
+      <div style="font-size:13px;line-height:1.9">
+        수행평가 채점 기록 <strong style="color:var(--text)">v1.3.0</strong><br>
+        경기도교육청 교사 김의준<br>
+        데이터는 이 기기의 브라우저에 저장됩니다.<br>
+        정기적으로 엑셀로 내려받아 백업하세요.
+      </div>
+    </div>
+  </div>`;
+}
+
+function saveGeminiKey(){
+  CFG.geminiKey=document.getElementById('gemini-key-inp')?.value?.trim()||'';
+  saveCfg();const el=document.getElementById('content');if(el)el.innerHTML=renderConfig();
+}
+function setAccent(idx){CFG.accentIdx=idx;saveCfg();applyTheme();const el=document.getElementById('content');if(el)el.innerHTML=renderConfig();}
+function setDarkMode(v){CFG.darkMode=v;saveCfg();applyTheme();const el=document.getElementById('content');if(el)el.innerHTML=renderConfig();}
+
+/* ═══════════════════════════════
+   Gemini
+═══════════════════════════════ */
+async function handleAiFile(e){
+  const file=e.target.files[0];if(!file||!selId)return;
+  const key=CFG.geminiKey;if(!key)return;
+  const msgEl=document.getElementById('ai-msg');
+  if(msgEl){msgEl.style.display='block';msgEl.textContent='분석 중...';}
+  try{
+    const b64=await new Promise((r,j)=>{const rd=new FileReader();rd.onload=()=>r(rd.result.split(',')[1]);rd.onerror=j;rd.readAsDataURL(file);});
+    const crit=getCrit();
+    const rubric=crit.map(c=>`- ${c.name}: 0~${c.max}점`).join('\n');
+    const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contents:[{parts:[
+        {text:`채점 기준:\n${rubric}\n\n위 기준으로 첨부 결과물을 분석하고 점수를 제안하세요.\nJSON으로만 응답:\n{"scores":[{"criteriaName":"기준명","score":숫자}]}`},
+        {inline_data:{mime_type:file.type,data:b64}}
+      ]}]})
+    });
+    const data=await res.json();
+    if(data.error)throw new Error(data.error.message);
+    const text=data.candidates?.[0]?.content?.parts?.[0]?.text||'';
+    const parsed=JSON.parse(text.replace(/```json|```/g,'').trim());
+    if(parsed.scores){
+      let n=0;
+      parsed.scores.forEach(item=>{
+        const c=crit.find(c=>c.name===item.criteriaName||c.name.includes(item.criteriaName));
+        if(c){setSc(selId,c.id,item.score);n++;}
+      });
+      if(msgEl)msgEl.textContent=`✓ ${n}개 항목 점수 입력. 반드시 검토 후 사용하세요.`;
+      render();
+    }
+  }catch(err){if(msgEl)msgEl.textContent=`오류: ${err.message}`;}
+  e.target.value='';
+}
+
+/* ═══════════════════════════════
+   엑셀 내보내기
+═══════════════════════════════ */
+function exportExcel(){
+  if(!window.XLSX){alert('XLSX 라이브러리 로딩 실패');return;}
+  const ass=getSelAss();if(!ass){alert('수행평가를 선택하세요');return;}
+  const wb=window.XLSX.utils.book_new();
+  const crit=ass.criteria;
+  const mx=crit.reduce((s,c)=>s+c.max,0);
+  const tgtCls=filterCid==='all'?S.classes:S.classes.filter(c=>c.id===filterCid);
+
+  tgtCls.forEach(cls=>{
+    const sl=S.students.filter(s=>s.classId===cls.id);if(!sl.length)return;
+    const calcTot=s=>crit.reduce((sum,c)=>{const v=S.scores[ass.id]?.[s.id]?.[c.id];return sum+(v===''||v===undefined?0:Number(v));},0);
+    const calcDone=s=>crit.length>0&&crit.every(c=>{const v=S.scores[ass.id]?.[s.id]?.[c.id];return v!==undefined&&v!=='';});
+    const hdrs=['학번','이름',...crit.map(c=>`${c.name}(${c.max}점)`),`합계(${mx}점)`,'완료여부'];
+    const rows=sl.map(s=>[s.studentId||'',s.name,...crit.map(c=>{const v=S.scores[ass.id]?.[s.id]?.[c.id];return(v===undefined||v==='')?0:Number(v);}),calcTot(s),calcDone(s)?'완료':'미완']);
+    const vals=crit.map(c=>{const vs=sl.map(s=>S.scores[ass.id]?.[s.id]?.[c.id]).filter(v=>v!==undefined&&v!=='').map(Number);return vs.length?Math.round(vs.reduce((a,b)=>a+b,0)/vs.length*10)/10:'';});
+    const tots=sl.map(s=>calcTot(s));
+    const av=tots.length?Math.round(tots.reduce((a,b)=>a+b,0)/tots.length*10)/10:0;
+    const ws=window.XLSX.utils.aoa_to_sheet([hdrs,...rows,['','평균',...vals,av,'']]);
+    ws['!cols']=[{wch:12},{wch:12},...crit.map(()=>({wch:14})),{wch:12},{wch:8}];
+    window.XLSX.utils.book_append_sheet(wb,ws,cls.name);
+  });
+  if(filterCid==='all'&&S.students.length>0){
+    const calcTot=s=>crit.reduce((sum,c)=>{const v=S.scores[ass.id]?.[s.id]?.[c.id];return sum+(v===''||v===undefined?0:Number(v));},0);
+    const hdrs=['반','학번','이름',...crit.map(c=>`${c.name}(${c.max}점)`),`합계(${mx}점)`];
+    const rows=S.students.map(s=>[cn(s.classId),s.studentId||'',s.name,...crit.map(c=>{const v=S.scores[ass.id]?.[s.id]?.[c.id];return(v===undefined||v==='')?0:Number(v);}),calcTot(s)]);
+    const ws=window.XLSX.utils.aoa_to_sheet([hdrs,...rows]);
+    ws['!cols']=[{wch:8},{wch:12},{wch:12},...crit.map(()=>({wch:14})),{wch:12}];
+    window.XLSX.utils.book_append_sheet(wb,ws,'전체');
+  }
+  if(!wb.SheetNames.length){alert('내려받을 데이터가 없습니다');return;}
+  const out=window.XLSX.write(wb,{bookType:'xlsx',type:'array'});
+  const blob=new Blob([out],{type:'application/octet-stream'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=`${ass.name}_채점기록.xlsx`;a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+function exportBackup(){
+  const now=new Date();
+  const ts=`${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+  const blob=new Blob([JSON.stringify(S,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=`채점기록_백업_${ts}.json`;a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function importBackup(e){
+  const f=e.target.files[0];if(!f)return;
+  const rd=new FileReader();
+  rd.onload=ev=>{
+    try{
+      const d=JSON.parse(ev.target.result);
+      if(!d.classes||!d.students||!d.assessments)throw new Error('형식 오류');
+      showConfirm(
+        '백업 파일을 불러오면<br>현재 데이터가 <strong>모두 교체</strong>됩니다.<br>계속할까요?',
+        '불러오기','var(--accent)',()=>{
+          S=d;save();
+          selAssId=null;filterCid='all';selId=null;stuTabCls='';
+          editingClsId=null;editingAssId=null;expandedAssId=null;
+          render();
+        });
+    }catch(err){showConfirm('올바른 백업 파일이 아닙니다.','확인',null,()=>{});}
+  };
+  rd.readAsText(f);e.target.value='';
+}
+
+/* ─── 시작 ─── */
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+switchTab('setup');
+</script>
+</body>
+</html>
