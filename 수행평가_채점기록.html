@@ -235,8 +235,6 @@ tr.avg-row td{background:#f9f8f5}
 <div class="content" id="content"></div>
 
 <!-- 전역 파일 인풋 -->
-<input type="file" id="crit-file"   accept=".csv,.txt"      style="display:none" onchange="handleCritFile(event)">
-<input type="file" id="stu-file"    accept=".csv,.txt"      style="display:none" onchange="handleStuFile(event)">
 <input type="file" id="ai-file"     accept="image/*,.pdf"   style="display:none" onchange="handleAiFile(event)">
 <input type="file" id="backup-file" accept=".json"          style="display:none" onchange="importBackup(event)">
 
@@ -285,7 +283,7 @@ let S={classes:[],students:[],assessments:[],scores:{}};
 let CFG={accentIdx:0,darkMode:'auto',geminiKey:''};
 let tab='setup',setupTab='class';
 let filterCid='all',selAssId=null,selId=null;
-let editingClsId=null,editingAssId=null,expandedAssId=null,critFileAssId=null;
+let editingClsId=null,editingAssId=null,expandedAssId=null;
 let stuTabCls='';
 
 const uid=()=>Math.random().toString(36).slice(2,9);
@@ -643,11 +641,6 @@ function renderStudentMgmt(){
         <button class="btn-p" onclick="addStudentFn()">추가</button>
       </div>
 
-      <div class="upload-box" onclick="triggerStuFile()" style="margin-bottom:6px">
-        <div style="font-size:18px;margin-bottom:2px">📄</div>
-        <div style="font-size:12px;font-weight:600">파일로 일괄 등록</div>
-        <div style="font-size:11px;color:var(--text2)">형식: 학번,이름 (한 줄에 한 명)</div>
-      </div>
       ${CFG.geminiKey?`
       <div class="upload-box" onclick="triggerStuAi()" style="border-color:var(--accent);background:var(--accent-l)">
         <div style="font-size:18px;margin-bottom:2px">🤖</div>
@@ -682,25 +675,6 @@ function addStudentFn(){
   document.getElementById('inp-sname').focus();
 }
 function deleteStudent(id){S.students=S.students.filter(s=>s.id!==id);save();renderSub();updHd();}
-function triggerStuFile(){
-  const cls=stuTabCls;
-  if(!cls){alert('반을 먼저 선택하세요');return;}
-  document.getElementById('stu-file').click();
-}
-function handleStuFile(e){
-  const f=e.target.files[0];if(!f)return;
-  const cls=stuTabCls;
-  if(!cls){alert('반을 먼저 선택하세요');return;}
-  const rd=new FileReader();
-  rd.onload=ev=>{
-    ev.target.result.trim().split(/\r?\n/).filter(l=>l.trim()).forEach(line=>{
-      const p=line.split(',').map(x=>x.trim().replace(/^"|"$/g,''));
-      S.students.push(p.length>=2?{id:uid(),classId:cls,studentId:p[0],name:p[1]}:{id:uid(),classId:cls,studentId:'',name:p[0]});
-    });
-    save();renderSub();updHd();
-  };
-  rd.readAsText(f);e.target.value='';
-}
 
 /* ═══════════════════════════════
    ③ 수행평가 관리
@@ -751,11 +725,6 @@ function renderAssessMgmt(){
           <input type="number" id="cmax-${a.id}" placeholder="배점" style="width:62px"
             onkeydown="if(event.key==='Enter')addCritToAss('${a.id}')">
           <button class="btn-p" style="padding:10px 12px" onclick="addCritToAss('${a.id}')">추가</button>
-        </div>
-        <div class="upload-box" style="margin-top:8px" onclick="triggerCritFile('${a.id}')">
-          <div style="font-size:18px;margin-bottom:2px">📄</div>
-          <div style="font-size:12px;font-weight:600">파일로 기준 일괄 등록</div>
-          <div style="font-size:11px;color:var(--text2)">형식: 기준명,배점</div>
         </div>
         ${CFG.geminiKey?`
         <div class="upload-box" style="margin-top:6px;border-color:var(--accent);background:var(--accent-l)" onclick="triggerCritAi('${a.id}')">
@@ -841,21 +810,6 @@ function addCritToAss(assId){
 function deleteCritFromAss(assId,critId){
   const a=S.assessments.find(x=>x.id===assId);if(!a)return;
   a.criteria=a.criteria.filter(c=>c.id!==critId);save();renderSub();
-}
-function triggerCritFile(assId){critFileAssId=assId;document.getElementById('crit-file').click();}
-function handleCritFile(e){
-  const f=e.target.files[0];if(!f)return;
-  const a=S.assessments.find(x=>x.id===critFileAssId);if(!a)return;
-  const rd=new FileReader();
-  rd.onload=ev=>{
-    ev.target.result.trim().split(/\r?\n/).filter(l=>l.trim()).forEach(line=>{
-      const p=line.split(',').map(x=>x.trim().replace(/^"|"$/g,''));
-      const m=parseInt(p[1]);
-      if(p[0]&&!isNaN(m)&&m>0)a.criteria.push({id:uid(),name:p[0],max:m});
-    });
-    save();renderSub();
-  };
-  rd.readAsText(f);e.target.value='';
 }
 function copyCriteria(targetId,sourceId){
   closeModal();
