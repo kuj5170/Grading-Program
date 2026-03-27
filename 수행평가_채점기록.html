@@ -643,11 +643,21 @@ function renderStudentMgmt(){
         <button class="btn-p" onclick="addStudentFn()">추가</button>
       </div>
 
-      <div class="upload-box" onclick="triggerStuFile()" style="margin-bottom:4px">
+      <div class="upload-box" onclick="triggerStuFile()" style="margin-bottom:6px">
         <div style="font-size:18px;margin-bottom:2px">📄</div>
         <div style="font-size:12px;font-weight:600">파일로 일괄 등록</div>
         <div style="font-size:11px;color:var(--text2)">형식: 학번,이름 (한 줄에 한 명)</div>
       </div>
+      ${CFG.geminiKey?`
+      <div class="upload-box" onclick="triggerStuAi()" style="border-color:var(--accent);background:var(--accent-l)">
+        <div style="font-size:18px;margin-bottom:2px">🤖</div>
+        <div style="font-size:12px;font-weight:600;color:var(--accent)">AI로 명단 자동 인식</div>
+        <div style="font-size:11px;color:var(--accent-m)">명단 사진·문서를 업로드하면 Gemini가 자동 추출</div>
+      </div>
+      <input type="file" id="stu-ai-file" accept="image/*,.pdf" style="display:none" onchange="handleStuAiFile(event)">`
+      :`<div style="font-size:11px;color:var(--text3);text-align:center;padding:4px 0">
+        AI 자동 인식을 사용하려면 <button onclick="switchTab('config')" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:11px;font-family:inherit;text-decoration:underline;padding:0">설정에서 Gemini API 키</button>를 등록하세요
+      </div>`}
 
       ${stuList.length>0?`
         <div style="border-top:.5px solid var(--border);margin-top:12px;padding-top:4px">
@@ -747,6 +757,14 @@ function renderAssessMgmt(){
           <div style="font-size:12px;font-weight:600">파일로 기준 일괄 등록</div>
           <div style="font-size:11px;color:var(--text2)">형식: 기준명,배점</div>
         </div>
+        ${CFG.geminiKey?`
+        <div class="upload-box" style="margin-top:6px;border-color:var(--accent);background:var(--accent-l)" onclick="triggerCritAi('${a.id}')">
+          <div style="font-size:18px;margin-bottom:2px">🤖</div>
+          <div style="font-size:12px;font-weight:600;color:var(--accent)">AI로 채점 기준 자동 인식</div>
+          <div style="font-size:11px;color:var(--accent-m)">채점 기준표 사진·문서를 업로드하면 Gemini가 자동 추출</div>
+        </div>
+        <input type="file" id="crit-ai-file-${a.id}" accept="image/*,.pdf" style="display:none" onchange="handleCritAiFile(event,'${a.id}')">
+        `:''}
         ${S.assessments.length>1?`
         <button class="btn-o" style="width:100%;margin-top:4px;font-size:13px" onclick="showCopyModal('${a.id}')">
           📋 다른 수행평가에서 기준 복사
@@ -1243,7 +1261,7 @@ function renderConfig(){
     <div class="card" style="color:var(--text2)">
       <div class="lbl">정보</div>
       <div style="font-size:13px;line-height:1.9">
-        수행평가 채점 기록 <strong style="color:var(--text)">v1.3.0</strong><br>
+        수행평가 채점 기록 <strong style="color:var(--text)">v1.4.0</strong><br>
         경기도교육청 교사 김의준<br>
         데이터는 이 기기의 브라우저에 저장됩니다.<br>
         정기적으로 엑셀로 내려받아 백업하세요.
@@ -1260,27 +1278,177 @@ function setAccent(idx){CFG.accentIdx=idx;saveCfg();applyTheme();const el=docume
 function setDarkMode(v){CFG.darkMode=v;saveCfg();applyTheme();const el=document.getElementById('content');if(el)el.innerHTML=renderConfig();}
 
 /* ═══════════════════════════════
-   Gemini
+   Gemini AI 명단·기준 인식
+═══════════════════════════════ */
+function triggerStuAi(){
+  const cls=stuTabCls;
+  if(!cls){alert('반을 먼저 선택하세요');return;}
+  if(!CFG.geminiKey){alert('설정에서 Gemini API 키를 먼저 등록하세요');return;}
+  document.getElementById('stu-ai-file').click();
+}
+
+async function handleStuAiFile(e){
+  const file=e.target.files[0];if(!file)return;
+  const cls=stuTabCls;if(!cls)return;
+  showAiLoading('학생 명단을 인식하는 중...');
+  try{
+    const b64=await fileToB64(file);
+    const res=await callGemini(b64,file.type,
+      `이 이미지(또는 문서)에서 학생 명단을 추출해주세요.\n학번과 이름을 읽어서 아래 JSON 형식으로만 응답하세요. 다른 텍스트는 절대 포함하지 마세요.\n{"students":[{"studentId":"학번(없으면 빈 문자열)","name":"이름"}]}`
+    );
+    closeModal();
+    const parsed=JSON.parse(res.replace(/```json|```/g,'').trim());
+    if(!parsed.students?.length)throw new Error('명단을 찾을 수 없습니다');
+    showStuAiConfirm(cls, parsed.students);
+  }catch(err){
+    closeModal();
+    showConfirm(`인식 실패: ${esc(err.message)}<br><br>사진이 선명한지, API 키가 올바른지 확인해주세요.`,'확인',null,()=>{});
+  }
+  e.target.value='';
+}
+
+function showStuAiConfirm(clsId, students){
+  const clsName=cn(clsId);
+  const rows=students.map((s,i)=>`
+    <div style="display:flex;align-items:center;padding:8px 0;border-bottom:.5px solid var(--border)">
+      <input type="checkbox" id="sc-${i}" checked style="width:18px;height:18px;flex-shrink:0;margin-right:10px;accent-color:var(--accent)">
+      <span style="font-size:12px;color:var(--text2);width:76px;flex-shrink:0">${esc(s.studentId||'(학번 없음)')}</span>
+      <span style="flex:1;font-size:14px">${esc(s.name)}</span>
+    </div>`).join('');
+  const ov=document.createElement('div');
+  ov.className='modal-overlay';
+  ov.innerHTML=`<div class="modal-box">
+    <div class="modal-title">AI 인식 결과 확인</div>
+    <div class="modal-sub" style="margin-bottom:10px">${esc(clsName)} · ${students.length}명 인식됨 — 등록할 학생을 선택하세요</div>
+    <div style="max-height:40vh;overflow-y:auto;border:.5px solid var(--border);border-radius:var(--rs);padding:0 12px">
+      ${rows}
+    </div>
+    <div class="modal-btns">
+      <button class="modal-cancel" onclick="closeModal()">취소</button>
+      <button class="modal-ok" id="_mOk" style="background:var(--accent);color:var(--accent-l)">등록</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  document.getElementById('_mOk').onclick=()=>{
+    students.forEach((s,i)=>{
+      const chk=document.getElementById('sc-'+i);
+      if(chk?.checked) S.students.push({id:uid(),classId:clsId,studentId:s.studentId||'',name:s.name});
+    });
+    save();closeModal();renderSub();updHd();
+  };
+}
+
+let critAiTargetId=null;
+function triggerCritAi(assId){
+  if(!CFG.geminiKey){alert('설정에서 Gemini API 키를 먼저 등록하세요');return;}
+  critAiTargetId=assId;
+  document.getElementById('crit-ai-file-'+assId)?.click();
+}
+
+async function handleCritAiFile(e, assId){
+  const file=e.target.files[0];if(!file)return;
+  showAiLoading('채점 기준을 인식하는 중...');
+  try{
+    const b64=await fileToB64(file);
+    const res=await callGemini(b64,file.type,
+      `이 이미지(또는 문서)에서 채점 기준표를 추출해주세요.\n각 항목의 기준명과 배점(점수)을 읽어서 아래 JSON 형식으로만 응답하세요. 다른 텍스트는 절대 포함하지 마세요.\n{"criteria":[{"name":"기준명","max":배점숫자}]}`
+    );
+    closeModal();
+    const parsed=JSON.parse(res.replace(/```json|```/g,'').trim());
+    if(!parsed.criteria?.length)throw new Error('채점 기준을 찾을 수 없습니다');
+    showCritAiConfirm(assId, parsed.criteria);
+  }catch(err){
+    closeModal();
+    showConfirm(`인식 실패: ${esc(err.message)}<br><br>사진이 선명한지, API 키가 올바른지 확인해주세요.`,'확인',null,()=>{});
+  }
+  e.target.value='';
+}
+
+function showCritAiConfirm(assId, criteria){
+  const assName=S.assessments.find(a=>a.id===assId)?.name||'';
+  const rows=criteria.map((c,i)=>`
+    <div style="display:flex;align-items:center;padding:8px 0;border-bottom:.5px solid var(--border)">
+      <input type="checkbox" id="cc-${i}" checked style="width:18px;height:18px;flex-shrink:0;margin-right:10px;accent-color:var(--accent)">
+      <span style="flex:1;font-size:14px">${esc(c.name)}</span>
+      <span style="font-size:13px;font-weight:600;color:var(--accent);margin-left:8px;flex-shrink:0">${c.max}점</span>
+    </div>`).join('');
+  const total=criteria.reduce((s,c)=>s+Number(c.max),0);
+  const ov=document.createElement('div');
+  ov.className='modal-overlay';
+  ov.innerHTML=`<div class="modal-box">
+    <div class="modal-title">AI 인식 결과 확인</div>
+    <div class="modal-sub" style="margin-bottom:10px">${esc(assName)} · ${criteria.length}개 기준 · 합계 ${total}점 — 등록할 기준을 선택하세요</div>
+    <div style="max-height:40vh;overflow-y:auto;border:.5px solid var(--border);border-radius:var(--rs);padding:0 12px">
+      ${rows}
+    </div>
+    <div class="modal-btns">
+      <button class="modal-cancel" onclick="closeModal()">취소</button>
+      <button class="modal-ok" id="_mOk" style="background:var(--accent);color:var(--accent-l)">등록</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  document.getElementById('_mOk').onclick=()=>{
+    const a=S.assessments.find(x=>x.id===assId);if(!a)return;
+    criteria.forEach((c,i)=>{
+      const chk=document.getElementById('cc-'+i);
+      if(chk?.checked&&c.name&&Number(c.max)>0)
+        a.criteria.push({id:uid(),name:c.name,max:Number(c.max)});
+    });
+    save();closeModal();renderSub();
+  };
+}
+
+/* 공통 헬퍼 */
+function showAiLoading(msg){
+  const ov=document.createElement('div');
+  ov.className='modal-overlay';
+  ov.id='ai-loading';
+  ov.innerHTML=`<div class="modal-box" style="text-align:center;padding:28px 20px">
+    <div style="font-size:32px;margin-bottom:12px">🤖</div>
+    <div style="font-size:15px;font-weight:600;margin-bottom:6px">${msg}</div>
+    <div style="font-size:13px;color:var(--text2)">잠시만 기다려주세요...</div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+
+function fileToB64(file){
+  return new Promise((r,j)=>{
+    const rd=new FileReader();
+    rd.onload=()=>r(rd.result.split(',')[1]);
+    rd.onerror=j;
+    rd.readAsDataURL(file);
+  });
+}
+
+async function callGemini(b64, mimeType, prompt){
+  const res=await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${CFG.geminiKey}`,
+    {method:'POST',headers:{'Content-Type':'application/json'},
+     body:JSON.stringify({contents:[{parts:[
+       {text:prompt},
+       {inline_data:{mime_type:mimeType,data:b64}}
+     ]}]})}
+  );
+  const data=await res.json();
+  if(data.error)throw new Error(data.error.message);
+  return data.candidates?.[0]?.content?.parts?.[0]?.text||'';
+}
+
+/* ═══════════════════════════════
+   Gemini (채점 자동화)
 ═══════════════════════════════ */
 async function handleAiFile(e){
   const file=e.target.files[0];if(!file||!selId)return;
-  const key=CFG.geminiKey;if(!key)return;
+  if(!CFG.geminiKey)return;
   const msgEl=document.getElementById('ai-msg');
   if(msgEl){msgEl.style.display='block';msgEl.textContent='분석 중...';}
   try{
-    const b64=await new Promise((r,j)=>{const rd=new FileReader();rd.onload=()=>r(rd.result.split(',')[1]);rd.onerror=j;rd.readAsDataURL(file);});
+    const b64=await fileToB64(file);
     const crit=getCrit();
     const rubric=crit.map(c=>`- ${c.name}: 0~${c.max}점`).join('\n');
-    const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`,{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({contents:[{parts:[
-        {text:`채점 기준:\n${rubric}\n\n위 기준으로 첨부 결과물을 분석하고 점수를 제안하세요.\nJSON으로만 응답:\n{"scores":[{"criteriaName":"기준명","score":숫자}]}`},
-        {inline_data:{mime_type:file.type,data:b64}}
-      ]}]})
-    });
-    const data=await res.json();
-    if(data.error)throw new Error(data.error.message);
-    const text=data.candidates?.[0]?.content?.parts?.[0]?.text||'';
+    const text=await callGemini(b64,file.type,
+      `채점 기준:\n${rubric}\n\n위 기준으로 첨부 결과물을 분석하고 점수를 제안하세요.\nJSON으로만 응답:\n{"scores":[{"criteriaName":"기준명","score":숫자}]}`
+    );
     const parsed=JSON.parse(text.replace(/```json|```/g,'').trim());
     if(parsed.scores){
       let n=0;
